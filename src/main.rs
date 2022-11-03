@@ -30,7 +30,7 @@ struct Options {
     #[arg(short, long, help = "Random seed")]
     seed: Option<i64>,
 
-    #[arg(help = "Filename to flash or write")]
+    #[arg(help = "Filename to flash from or write into")]
     filename: Option<String>,
 }
 
