@@ -40,7 +40,7 @@ impl Ch559 {
                 println!("{}", error);
             }
         }
-        return ch559;
+        ch559
     }
 
     pub fn set_seed(&mut self, seed: i64) {
@@ -66,9 +66,9 @@ impl Ch559 {
                 if 0 != response[4] {
                     return Err(String::from("failed to erase"));
                 }
-                return Ok(());
+                Ok(())
             }
-            Err(string) => return Err(string),
+            Err(string) => Err(string),
         }
     }
 
@@ -83,9 +83,9 @@ impl Ch559 {
                 if 0 != response[4] {
                     return Err(String::from("failed to erase"));
                 }
-                return Ok(());
+                Ok(())
             }
-            Err(string) => return Err(string),
+            Err(string) => Err(string),
         }
     }
 
@@ -119,7 +119,7 @@ impl Ch559 {
             };
             bar.progress(offset + size);
         }
-        return Ok(());
+        Ok(())
     }
 
     pub fn write(
@@ -215,7 +215,7 @@ impl Ch559 {
             }
             bar.progress(offset + size);
         }
-        return Ok(());
+        Ok(())
     }
 
     fn initialize(&mut self) -> Result<(), String> {
@@ -325,9 +325,9 @@ impl Ch559 {
                     return Err(String::from("failed to reset key"));
                 }
                 self.key_is_reset = true;
-                return Ok(());
+                Ok(())
             }
-            Err(error) => return Err(error),
+            Err(error) => Err(error),
         }
     }
 
@@ -343,16 +343,14 @@ impl Ch559 {
                 return Err(String::from("failed to do a bulk write"));
             }
             match handle.read_bulk(self.ep_in, response, core::time::Duration::new(1, 0)) {
-                Ok(_) => return Ok(()),
-                Err(error) => {
-                    return Err(String::from(format!(
-                        "failed to do a bulk read response ({})",
-                        error
-                    )));
-                }
+                Ok(_) => Ok(()),
+                Err(error) => Err(String::from(format!(
+                    "failed to do a bulk read response ({})",
+                    error
+                ))),
             }
         } else {
-            return Err(String::from("invalid handle"));
+            Err(String::from("invalid handle"))
         }
     }
 
@@ -385,7 +383,7 @@ impl Ch559 {
             }
             Err(error) => return Err(error),
         }
-        return Ok(());
+        Ok(())
     }
 
     // `addr` is an offset from 0xF000 (DATA_FLASH_ADDR) if `data_region` is true.
@@ -436,6 +434,6 @@ impl Ch559 {
             }
             Err(error) => return Err(error),
         }
-        return Ok(());
+        Ok(())
     }
 }
