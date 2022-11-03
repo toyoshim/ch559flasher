@@ -115,18 +115,25 @@ impl Ch559 {
         return Ok(());
     }
 
-    pub fn write_data(&mut self, filename: &String, write: bool) -> Result<(), String> {
+    pub fn write(
+        &mut self,
+        filename: &String,
+        write: bool,
+        data_region: bool,
+    ) -> Result<(), String> {
         let mut file;
         match File::open(filename) {
             Ok(file_) => file = file_,
             Err(error) => return Err(format!("{}", error)),
         }
+        let length: usize;
         match file.metadata() {
             Ok(metadata) => {
                 if !metadata.is_file() {
                     return Err(String::from("not a regular file"));
                 }
-                if 0x400 != metadata.len() {
+                length = metadata.len() as usize;
+                if data_region && 0x400 != length {
                     return Err(String::from("file size should be 0x400"));
                 }
             }
@@ -135,10 +142,10 @@ impl Ch559 {
         if let Err(error) = self.reset_key() {
             return Err(error);
         }
-        let mut bar = ProgressBar::new(0x400);
-        for offset in (0..0x400).step_by(0x38) {
+        let mut bar = ProgressBar::new(length);
+        for offset in (0..length).step_by(0x38) {
             bar.progress(offset);
-            let remaining_size = 0x400 - offset;
+            let remaining_size = length - offset;
             let size: usize = if remaining_size > 0x38 {
                 0x38
             } else {
@@ -154,7 +161,8 @@ impl Ch559 {
                 }
                 Err(error) => return Err(format!("{}", error)),
             }
-            if let Err(error) = self.write_verify_in_range(offset as u16, &data, write, true) {
+            if let Err(error) = self.write_verify_in_range(offset as u16, &data, write, data_region)
+            {
                 return Err(error);
             }
             bar.progress(offset + size);

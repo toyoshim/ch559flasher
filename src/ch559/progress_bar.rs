@@ -1,6 +1,7 @@
 // Copyright 2022 Takashi Toyoshima <toyoshim@gmail.com>. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be found
 // in the LICENSE file.
+use std::io::{stdout, Write};
 
 pub struct ProgressBar {
     size: usize,
@@ -23,6 +24,7 @@ impl ProgressBar {
         for _ in current..updated {
             print!("#");
         }
+        stdout().flush().unwrap();
     }
 }
 

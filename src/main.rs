@@ -9,8 +9,10 @@ use crate::ch559::Ch559;
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Options {
-    #[arg(short, long, help = "Erase user program area")]
+    #[arg(short, long, help = "Erase program area")]
     erase: bool,
+    #[arg(short, long, help = "Write FILENAME to program area")]
+    write: bool,
 
     #[arg(short = 'E', long, help = "Erase data area")]
     erase_data: bool,
@@ -42,6 +44,24 @@ fn main() {
             }
         }
     }
+    if options.write {
+        if let Err(error) = ch559.erase() {
+            println!("erase: {}", error);
+            std::process::exit(exitcode::IOERR);
+        }
+        if let Some(filename) = options.filename.as_ref() {
+            match ch559.write(&filename, true, false) {
+                Ok(()) => println!("write: complete"),
+                Err(error) => {
+                    println!("write: {}", error);
+                    std::process::exit(exitcode::IOERR);
+                }
+            }
+        } else {
+            println!("write: FILENAME should be specified");
+            std::process::exit(exitcode::USAGE);
+        }
+    }
     if options.erase_data {
         match ch559.erase_data() {
             Ok(()) => println!("erase_data: complete"),
@@ -66,8 +86,12 @@ fn main() {
         }
     }
     if options.write_data {
+        if let Err(error) = ch559.erase_data() {
+            println!("erase_data: {}", error);
+            std::process::exit(exitcode::IOERR);
+        }
         if let Some(filename) = options.filename.as_ref() {
-            match ch559.write_data(&filename, true) {
+            match ch559.write(&filename, true, true) {
                 Ok(()) => println!("write_data: complete"),
                 Err(error) => {
                     println!("write_data: {}", error);
@@ -81,7 +105,7 @@ fn main() {
     }
     if options.verify_data {
         if let Some(filename) = options.filename.as_ref() {
-            match ch559.write_data(&filename, false) {
+            match ch559.write(&filename, false, true) {
                 Ok(()) => println!("verify_data: complete"),
                 Err(error) => {
                     println!("verify_data: {}", error);
