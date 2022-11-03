@@ -55,37 +55,27 @@ impl Ch559 {
     }
 
     pub fn erase(&mut self) -> Result<(), String> {
-        if let Err(error) = self.reset_key() {
-            return Err(error);
-        }
+        self.reset_key()?;
         const ERASE_SIZE: u8 = 60;
         let request = [0xa4, 0x01, 0x00, ERASE_SIZE];
         let mut response: [u8; 6] = [0; 6];
-        match self.send_receive(&request, &mut response) {
-            Ok(_) => {
-                if 0 != response[4] {
-                    return Err(String::from("failed to erase"));
-                }
-                Ok(())
-            }
-            Err(string) => Err(string),
+        self.send_receive(&request, &mut response)?;
+        if 0 != response[4] {
+            Err(String::from("failed to erase"))
+        } else {
+            Ok(())
         }
     }
 
     pub fn erase_data(&mut self) -> Result<(), String> {
-        if let Err(error) = self.reset_key() {
-            return Err(error);
-        }
+        self.reset_key()?;
         let request = [0xa9, 0x00, 0x00, 0x00];
         let mut response: [u8; 6] = [0; 6];
-        match self.send_receive(&request, &mut response) {
-            Ok(_) => {
-                if 0 != response[4] {
-                    return Err(String::from("failed to erase"));
-                }
-                Ok(())
-            }
-            Err(string) => Err(string),
+        self.send_receive(&request, &mut response)?;
+        if 0 != response[4] {
+            Err(String::from("failed to erase"))
+        } else {
+            Ok(())
         }
     }
 
@@ -95,9 +85,7 @@ impl Ch559 {
             Ok(file_) => file = file_,
             Err(error) => return Err(format!("{}", error)),
         }
-        if let Err(error) = self.reset_key() {
-            return Err(error);
-        }
+        self.reset_key()?;
         let mut bar = ProgressBar::new(0x400);
         for offset in (0..0x400).step_by(0x38) {
             bar.progress(offset);
@@ -109,14 +97,10 @@ impl Ch559 {
             };
             let mut response: Vec<u8> = Vec::with_capacity(size);
             response.resize(size, 0);
-            match self.read_data_in_range(offset as u16, &mut response) {
-                Ok(_) => {
-                    if let Err(error) = file.write_all(&response) {
-                        return Err(format!("{}", error));
-                    }
-                }
-                Err(error) => return Err(error),
-            };
+            self.read_data_in_range(offset as u16, &mut response)?;
+            if let Err(error) = file.write_all(&response) {
+                return Err(format!("{}", error));
+            }
             bar.progress(offset + size);
         }
         Ok(())
@@ -161,9 +145,7 @@ impl Ch559 {
             }
             Err(error) => return Err(format!("{}", error)),
         }
-        if let Err(error) = self.reset_key() {
-            return Err(error);
-        }
+        self.reset_key()?;
         let length = if fullfill {
             if data_region {
                 0x400
@@ -209,10 +191,7 @@ impl Ch559 {
                     data[i] = rand.uint32() as u8;
                 }
             }
-            if let Err(error) = self.write_verify_in_range(offset as u16, &data, write, data_region)
-            {
-                return Err(error);
-            }
+            self.write_verify_in_range(offset as u16, &data, write, data_region)?;
             bar.progress(offset + size);
         }
         Ok(())
@@ -272,35 +251,27 @@ impl Ch559 {
                 0x20, 0x57, 0x43, 0x48, 0x2e, 0x43, 0x4e,
             ];
             let mut detect_response: [u8; 6] = [0; 6];
-            match self.send_receive(&detect_request, &mut detect_response) {
-                Ok(_) => {
-                    if detect_response[4] != 0x59 {
-                        return Err(String::from("failed to receive a valid response on detect"));
-                    }
-                    self.chip_id = detect_response[4];
-                }
-                Err(string) => return Err(string + " on detect"),
+            self.send_receive(&detect_request, &mut detect_response)?;
+            if detect_response[4] != 0x59 {
+                return Err(String::from("failed to receive a valid response on detect"));
             }
+            self.chip_id = detect_response[4];
             let identify_request = [0xa7, 0x02, 0x00, 0x1f, 0x00];
             let mut identify_response: [u8; 30] = [0; 30];
-            match self.send_receive(&identify_request, &mut identify_response) {
-                Ok(_) => {
-                    self.version = format!(
-                        "{}.{}{}",
-                        identify_response[19], identify_response[20], identify_response[21],
-                    );
-                }
-                Err(string) => return Err(string + " on detect"),
-            };
+            self.send_receive(&identify_request, &mut identify_response)?;
+            self.version = format!(
+                "{}.{}{}",
+                identify_response[19], identify_response[20], identify_response[21],
+            );
 
             println!("CH559 Found (BootLoader: v{})", self.version);
             self.sum = identify_response[22]
                 .wrapping_add(identify_response[23])
                 .wrapping_add(identify_response[24])
                 .wrapping_add(identify_response[25]);
-            return Ok(());
+            Ok(())
         } else {
-            return Err(String::from("invalid handle"));
+            Err(String::from("invalid handle"))
         }
     }
 
@@ -319,15 +290,12 @@ impl Ch559 {
             request[i] = self.sum;
         }
         let mut response = [0; 6];
-        match self.send_receive(&request, &mut response) {
-            Ok(_) => {
-                if response[4] != self.chip_id {
-                    return Err(String::from("failed to reset key"));
-                }
-                self.key_is_reset = true;
-                Ok(())
-            }
-            Err(error) => Err(error),
+        self.send_receive(&request, &mut response)?;
+        if response[4] != self.chip_id {
+            Err(String::from("failed to reset key"))
+        } else {
+            self.key_is_reset = true;
+            Ok(())
         }
     }
 
@@ -342,12 +310,15 @@ impl Ch559 {
             } else {
                 return Err(String::from("failed to do a bulk write"));
             }
-            match handle.read_bulk(self.ep_in, response, core::time::Duration::new(1, 0)) {
-                Ok(_) => Ok(()),
-                Err(error) => Err(String::from(format!(
+            if let Err(error) =
+                handle.read_bulk(self.ep_in, response, core::time::Duration::new(1, 0))
+            {
+                Err(String::from(format!(
                     "failed to do a bulk read response ({})",
                     error
-                ))),
+                )))
+            } else {
+                Ok(())
             }
         } else {
             Err(String::from("invalid handle"))
@@ -372,18 +343,15 @@ impl Ch559 {
         ];
         let mut response: Vec<u8> = Vec::with_capacity(buffer.len() + 6);
         response.resize(buffer.len() + 6, 0);
-        match self.send_receive(&request, &mut response) {
-            Ok(_) => {
-                if 0 != response[4] {
-                    return Err(String::from("failed to read"));
-                }
-                for i in 0..buffer.len() {
-                    buffer[i] = response[i + 6];
-                }
+        self.send_receive(&request, &mut response)?;
+        if 0 != response[4] {
+            Err(String::from("failed to read"))
+        } else {
+            for i in 0..buffer.len() {
+                buffer[i] = response[i + 6];
             }
-            Err(error) => return Err(error),
+            Ok(())
         }
-        Ok(())
     }
 
     // `addr` is an offset from 0xF000 (DATA_FLASH_ADDR) if `data_region` is true.
@@ -402,7 +370,7 @@ impl Ch559 {
         let length = (data.len() + 7) & !7;
         let mut request: Vec<u8> = Vec::with_capacity(8 + length);
         let address = if data_region && !write {
-            addr + 0xF000
+            addr + 0xf000
         } else {
             addr
         };
@@ -428,8 +396,9 @@ impl Ch559 {
         self.send_receive(&request, &mut response)?;
         if 0 != response[4] {
             let mode = if write { "flash" } else { "verify" };
-            return Err(String::from(format!("failed to {}", mode)));
+            Err(String::from(format!("failed to {}", mode)))
+        } else {
+            Ok(())
         }
-        Ok(())
     }
 }
