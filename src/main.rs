@@ -16,6 +16,10 @@ struct Options {
     erase_data: bool,
     #[arg(short = 'R', long, help = "Read data area to FILENAME")]
     read_data: bool,
+    #[arg(short = 'W', long, help = "Write FILENAME to data area")]
+    write_data: bool,
+    #[arg(short = 'C', long, help = "Compare data area with FILENAME")]
+    verify_data: bool,
 
     #[arg(help = "Filename to flash or write")]
     filename: Option<String>,
@@ -37,7 +41,6 @@ fn main() {
                 std::process::exit(exitcode::IOERR);
             }
         }
-        std::process::exit(exitcode::OK);
     }
     if options.erase_data {
         match ch559.erase_data() {
@@ -47,10 +50,9 @@ fn main() {
                 std::process::exit(exitcode::IOERR);
             }
         }
-        std::process::exit(exitcode::OK);
     }
     if options.read_data {
-        if let Some(filename) = options.filename {
+        if let Some(filename) = options.filename.as_ref() {
             match ch559.read_data(filename) {
                 Ok(()) => println!("read_data: complete"),
                 Err(error) => {
@@ -58,10 +60,38 @@ fn main() {
                     std::process::exit(exitcode::IOERR);
                 }
             }
-            std::process::exit(exitcode::OK);
         } else {
             println!("read_data: FILENAME should be specified");
             std::process::exit(exitcode::USAGE);
         }
     }
+    if options.write_data {
+        if let Some(filename) = options.filename.as_ref() {
+            match ch559.write_data(&filename, true) {
+                Ok(()) => println!("write_data: complete"),
+                Err(error) => {
+                    println!("write_data: {}", error);
+                    std::process::exit(exitcode::IOERR);
+                }
+            }
+        } else {
+            println!("write_data: FILENAME should be specified");
+            std::process::exit(exitcode::USAGE);
+        }
+    }
+    if options.verify_data {
+        if let Some(filename) = options.filename.as_ref() {
+            match ch559.write_data(&filename, false) {
+                Ok(()) => println!("verify_data: complete"),
+                Err(error) => {
+                    println!("verify_data: {}", error);
+                    std::process::exit(exitcode::IOERR);
+                }
+            }
+        } else {
+            println!("verify_data: FILENAME should be specified");
+            std::process::exit(exitcode::USAGE);
+        }
+    }
+    std::process::exit(exitcode::OK);
 }

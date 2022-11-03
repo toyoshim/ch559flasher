@@ -3,7 +3,7 @@
 // in the LICENSE file.
 use rusb;
 use std::fs::File;
-use std::io::Write;
+use std::io::{Read, Write};
 
 mod progress_bar;
 use crate::ch559::progress_bar::ProgressBar;
@@ -82,7 +82,7 @@ impl Ch559 {
         }
     }
 
-    pub fn read_data(&mut self, filename: String) -> Result<(), String> {
+    pub fn read_data(&mut self, filename: &String) -> Result<(), String> {
         let mut file;
         match File::create(filename) {
             Ok(file_) => file = file_,
@@ -110,6 +110,53 @@ impl Ch559 {
                 }
                 Err(error) => return Err(error),
             };
+            bar.progress(offset + size);
+        }
+        return Ok(());
+    }
+
+    pub fn write_data(&mut self, filename: &String, write: bool) -> Result<(), String> {
+        let mut file;
+        match File::open(filename) {
+            Ok(file_) => file = file_,
+            Err(error) => return Err(format!("{}", error)),
+        }
+        match file.metadata() {
+            Ok(metadata) => {
+                if !metadata.is_file() {
+                    return Err(String::from("not a regular file"));
+                }
+                if 0x400 != metadata.len() {
+                    return Err(String::from("file size should be 0x400"));
+                }
+            }
+            Err(error) => return Err(format!("{}", error)),
+        }
+        if let Err(error) = self.reset_key() {
+            return Err(error);
+        }
+        let mut bar = ProgressBar::new(0x400);
+        for offset in (0..0x400).step_by(0x38) {
+            bar.progress(offset);
+            let remaining_size = 0x400 - offset;
+            let size: usize = if remaining_size > 0x38 {
+                0x38
+            } else {
+                remaining_size
+            };
+            let mut data: Vec<u8> = Vec::with_capacity(size);
+            data.resize(size, 0);
+            match file.read(&mut data) {
+                Ok(read_size) => {
+                    if size != read_size {
+                        return Err(String::from("unexpected EOF"));
+                    }
+                }
+                Err(error) => return Err(format!("{}", error)),
+            }
+            if let Err(error) = self.write_verify_in_range(offset as u16, &data, write, true) {
+                return Err(error);
+            }
             bar.progress(offset + size);
         }
         return Ok(());
@@ -253,7 +300,7 @@ impl Ch559 {
         }
     }
 
-    // `addr` is offset from 0xF000 (DATA_FLASH_ADDR)
+    // `addr` is an offset from 0xF000 (DATA_FLASH_ADDR)
     // reset_key() should be called beforehand.
     fn read_data_in_range(&mut self, addr: u16, buffer: &mut [u8]) -> Result<(), String> {
         if buffer.len() > 0x38 {
@@ -278,6 +325,57 @@ impl Ch559 {
                 }
                 for i in 0..buffer.len() {
                     buffer[i] = response[i + 6];
+                }
+            }
+            Err(error) => return Err(error),
+        }
+        return Ok(());
+    }
+
+    // `addr` is an offset from 0xF000 (DATA_FLASH_ADDR) if `data_region` is true.
+    // reset_key() should be called beforehand.
+    fn write_verify_in_range(
+        &mut self,
+        addr: u16,
+        data: &[u8],
+        write: bool,
+        data_region: bool,
+    ) -> Result<(), String> {
+        if data.len() > 0x38 {
+            return Err(String::from("read size is too large"));
+        }
+        let write_command = if data_region { 0xaa } else { 0xa5 };
+        let length = (data.len() + 7) & !7;
+        let mut request: Vec<u8> = Vec::with_capacity(8 + length);
+        let address = if data_region && !write {
+            addr + 0xF000
+        } else {
+            addr
+        };
+        request.push(if write { write_command } else { 0xa6 });
+        request.push((length + 5) as u8);
+        request.push(0);
+        request.push(address as u8);
+        request.push((address >> 8) as u8);
+        request.push(0);
+        request.push(0);
+        request.push(length as u8);
+        for i in 0..length {
+            if i < data.len() {
+                request.push(data[i]);
+            } else {
+                request.push(0xff);
+            }
+            if 7 == (i & 7) {
+                request[8 + i] ^= self.chip_id;
+            }
+        }
+        let mut response: [u8; 6] = [0; 6];
+        match self.send_receive(&request, &mut response) {
+            Ok(_) => {
+                if 0 != response[4] {
+                    let mode = if write { "flash" } else { "verify" };
+                    return Err(String::from(format!("failed to {}", mode)));
                 }
             }
             Err(error) => return Err(error),
