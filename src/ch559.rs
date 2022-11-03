@@ -425,14 +425,10 @@ impl Ch559 {
             }
         }
         let mut response: [u8; 6] = [0; 6];
-        match self.send_receive(&request, &mut response) {
-            Ok(_) => {
-                if 0 != response[4] {
-                    let mode = if write { "flash" } else { "verify" };
-                    return Err(String::from(format!("failed to {}", mode)));
-                }
-            }
-            Err(error) => return Err(error),
+        self.send_receive(&request, &mut response)?;
+        if 0 != response[4] {
+            let mode = if write { "flash" } else { "verify" };
+            return Err(String::from(format!("failed to {}", mode)));
         }
         Ok(())
     }
