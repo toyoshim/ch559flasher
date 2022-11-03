@@ -10,7 +10,10 @@ pub struct ProgressBar {
 
 impl ProgressBar {
     pub fn new(size: usize) -> Self {
-        print!("[__________________________________________________]\r[");
+        print!(
+            "[__________________________________________________] ({} bytes)\r[",
+            size
+        );
         ProgressBar {
             size: size,
             progress: 0,

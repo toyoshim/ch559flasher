@@ -1,6 +1,7 @@
 // Copyright 2022 Takashi Toyoshima <toyoshim@gmail.com>. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be found
 // in the LICENSE file.
+use rand;
 use rusb;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -120,21 +121,36 @@ impl Ch559 {
         filename: &String,
         write: bool,
         data_region: bool,
+        fullfill: bool,
     ) -> Result<(), String> {
         let mut file;
         match File::open(filename) {
             Ok(file_) => file = file_,
             Err(error) => return Err(format!("{}", error)),
         }
-        let length: usize;
+        let file_length: usize;
         match file.metadata() {
             Ok(metadata) => {
                 if !metadata.is_file() {
                     return Err(String::from("not a regular file"));
                 }
-                length = metadata.len() as usize;
-                if data_region && 0x400 != length {
-                    return Err(String::from("file size should be 0x400"));
+                file_length = metadata.len() as usize;
+                if data_region {
+                    if !fullfill && 0x400 != file_length {
+                        return Err(String::from("file size should be 0x400"));
+                    }
+                    if file_length > 0x400 {
+                        return Err(String::from("file size is too large for data"));
+                    }
+                } else {
+                    if file_length > 0xf400 {
+                        return Err(String::from("file size is too large for code"));
+                    }
+                    if file_length > 0xf000 {
+                        println!(
+                            "code will run over data region as file size is larger than 0xF000"
+                        );
+                    }
                 }
             }
             Err(error) => return Err(format!("{}", error)),
@@ -142,6 +158,17 @@ impl Ch559 {
         if let Err(error) = self.reset_key() {
             return Err(error);
         }
+        let length = if fullfill {
+            if data_region {
+                0x400
+            } else if file_length > 0xf000 {
+                0xf400
+            } else {
+                0xf000
+            }
+        } else {
+            file_length
+        };
         let mut bar = ProgressBar::new(length);
         for offset in (0..length).step_by(0x38) {
             bar.progress(offset);
@@ -153,15 +180,30 @@ impl Ch559 {
             };
             let mut data: Vec<u8> = Vec::with_capacity(size);
             data.resize(size, 0);
-            match file.read(&mut data) {
-                Ok(read_size) => {
-                    if size != read_size {
-                        return Err(String::from("unexpected EOF"));
+            let read_size = if offset > file_length {
+                0
+            } else if offset + size > file_length {
+                file_length - offset
+            } else {
+                size
+            };
+            if 0 != read_size {
+                match file.read(&mut data) {
+                    Ok(size_) => {
+                        if read_size != size_ {
+                            return Err(String::from("unexpected EOF"));
+                        }
                     }
+                    Err(error) => return Err(format!("{}", error)),
                 }
-                Err(error) => return Err(format!("{}", error)),
             }
-            if let Err(error) = self.write_verify_in_range(offset as u16, &data, write, data_region)
+            if read_size != size {
+                for i in read_size..size {
+                    data[i] = rand::random::<u8>();
+                }
+            }
+            if let Err(error) =
+                self.write_verify_in_range(offset as u16, &data, write, data_region, fullfill)
             {
                 return Err(error);
             }
@@ -348,6 +390,7 @@ impl Ch559 {
         data: &[u8],
         write: bool,
         data_region: bool,
+        fullfill: bool,
     ) -> Result<(), String> {
         if data.len() > 0x38 {
             return Err(String::from("read size is too large"));
@@ -372,7 +415,8 @@ impl Ch559 {
             if i < data.len() {
                 request.push(data[i]);
             } else {
-                request.push(0xff);
+                let value: u8 = if fullfill { rand::random::<u8>() } else { 0xff };
+                request.push(value);
             }
             if 7 == (i & 7) {
                 request[8 + i] ^= self.chip_id;

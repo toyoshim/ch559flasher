@@ -23,6 +23,9 @@ struct Options {
     #[arg(short = 'C', long, help = "Compare data area with FILENAME")]
     verify_data: bool,
 
+    #[arg(short, long, help = "Fullfill unused area with randomized values")]
+    fullfill: bool,
+
     #[arg(help = "Filename to flash or write")]
     filename: Option<String>,
 }
@@ -50,7 +53,7 @@ fn main() {
             std::process::exit(exitcode::IOERR);
         }
         if let Some(filename) = options.filename.as_ref() {
-            match ch559.write(&filename, true, false) {
+            match ch559.write(&filename, true, false, options.fullfill) {
                 Ok(()) => println!("write: complete"),
                 Err(error) => {
                     println!("write: {}", error);
@@ -91,7 +94,7 @@ fn main() {
             std::process::exit(exitcode::IOERR);
         }
         if let Some(filename) = options.filename.as_ref() {
-            match ch559.write(&filename, true, true) {
+            match ch559.write(&filename, true, true, options.fullfill) {
                 Ok(()) => println!("write_data: complete"),
                 Err(error) => {
                     println!("write_data: {}", error);
@@ -105,7 +108,7 @@ fn main() {
     }
     if options.verify_data {
         if let Some(filename) = options.filename.as_ref() {
-            match ch559.write(&filename, false, true) {
+            match ch559.write(&filename, false, true, options.fullfill) {
                 Ok(()) => println!("verify_data: complete"),
                 Err(error) => {
                     println!("verify_data: {}", error);
