@@ -8,6 +8,9 @@ pub struct Ch559 {
     ep_in: u8,
     ep_out: u8,
     chip_id: u8,
+    version: String,
+    sum: u8,
+    key_is_reset: bool,
 }
 
 impl Ch559 {
@@ -19,6 +22,9 @@ impl Ch559 {
             ep_in: 0,
             ep_out: 0,
             chip_id: 0,
+            version: String::from("unknown"),
+            sum: 0,
+            key_is_reset: false,
         };
         if ch559.is_connected() {
             if let Err(error) = ch559.initialize() {
@@ -33,6 +39,47 @@ impl Ch559 {
         match self.handle {
             Some(_) => return true,
             None => return false,
+        }
+    }
+
+    pub fn erase(&mut self) -> Result<(), String> {
+        if let None = &mut self.handle {
+            return Err(String::from("invalid handle"));
+        }
+        if let Err(error) = self.reset_key() {
+            return Err(error);
+        }
+        const ERASE_SIZE: u8 = 60;
+        let request = [0xa4, 0x01, 0x00, ERASE_SIZE];
+        let mut response: [u8; 6] = [0; 6];
+        match self.send_receive(&request, &mut response) {
+            Ok(_) => {
+                if 0 != response[4] {
+                    return Err(String::from("failed to erase"));
+                }
+                return Ok(());
+            }
+            Err(string) => return Err(string),
+        }
+    }
+
+    pub fn erase_data(&mut self) -> Result<(), String> {
+        if let None = &mut self.handle {
+            return Err(String::from("invalid handle"));
+        }
+        if let Err(error) = self.reset_key() {
+            return Err(error);
+        }
+        let request = [0xa9, 0x00, 0x00, 0x00];
+        let mut response: [u8; 6] = [0; 6];
+        match self.send_receive(&request, &mut response) {
+            Ok(_) => {
+                if 0 != response[4] {
+                    return Err(String::from("failed to erase"));
+                }
+                return Ok(());
+            }
+            Err(string) => return Err(string),
         }
     }
 
@@ -93,17 +140,56 @@ impl Ch559 {
             match self.send_receive(&detect_request, &mut detect_response) {
                 Ok(_) => {
                     if detect_response[4] != 0x59 {
-                        return Err(String::from("failed to receive a valid response"));
+                        return Err(String::from("failed to receive a valid response on detect"));
                     }
                     self.chip_id = detect_response[4];
                 }
-                Err(string) => return Err(string),
+                Err(string) => return Err(string + " on detect"),
+            }
+            let identify_request = [0xa7, 0x02, 0x00, 0x1f, 0x00];
+            let mut identify_response: [u8; 30] = [0; 30];
+            match self.send_receive(&identify_request, &mut identify_response) {
+                Ok(_) => {
+                    self.version = format!(
+                        "{}.{}{}",
+                        identify_response[19], identify_response[20], identify_response[21],
+                    );
+                }
+                Err(string) => return Err(string + " on detect"),
             };
 
-            // TODO: identify
+            println!("CH559 Found (BootLoader: v{})", self.version);
+            self.sum = identify_response[22]
+                .wrapping_add(identify_response[23])
+                .wrapping_add(identify_response[24])
+                .wrapping_add(identify_response[25]);
             return Ok(());
         } else {
             return Err(String::from("invalid handle"));
+        }
+    }
+
+    fn reset_key(&mut self) -> Result<(), String> {
+        if self.key_is_reset {
+            return Ok(());
+        }
+        let mut request = [0; 0x33];
+        request[0] = 0xa3;
+        request[1] = 0x30;
+        request[2] = 0x00;
+        for i in 3..0x33 {
+            request[i] = self.sum;
+        }
+        let mut response = [0; 6];
+        match self.send_receive(&request, &mut response) {
+            Ok(_) => {
+                if response[4] != self.chip_id {
+                    return Err(String::from("failed to reset key"));
+                }
+                self.key_is_reset = true;
+                return Ok(());
+            }
+            Err(error) => return Err(error),
         }
     }
 
@@ -118,10 +204,14 @@ impl Ch559 {
             } else {
                 return Err(String::from("failed to do a bulk write"));
             }
-            if let Ok(_) = handle.read_bulk(self.ep_in, response, core::time::Duration::new(1, 0)) {
-                return Ok(());
-            } else {
-                return Err(String::from("failed to do a bulk read response"));
+            match handle.read_bulk(self.ep_in, response, core::time::Duration::new(1, 0)) {
+                Ok(_) => return Ok(()),
+                Err(error) => {
+                    return Err(String::from(format!(
+                        "failed to do a bulk read response ({})",
+                        error
+                    )));
+                }
             }
         } else {
             return Err(String::from("invalid handle"));
