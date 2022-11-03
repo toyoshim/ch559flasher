@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be found
 // in the LICENSE file.
 use rusb;
+use std::fs::File;
+use std::io::Write;
+
+mod progress_bar;
+use crate::ch559::progress_bar::ProgressBar;
 
 pub struct Ch559 {
     handle: Option<rusb::DeviceHandle<rusb::GlobalContext>>,
@@ -43,9 +48,6 @@ impl Ch559 {
     }
 
     pub fn erase(&mut self) -> Result<(), String> {
-        if let None = &mut self.handle {
-            return Err(String::from("invalid handle"));
-        }
         if let Err(error) = self.reset_key() {
             return Err(error);
         }
@@ -64,9 +66,6 @@ impl Ch559 {
     }
 
     pub fn erase_data(&mut self) -> Result<(), String> {
-        if let None = &mut self.handle {
-            return Err(String::from("invalid handle"));
-        }
         if let Err(error) = self.reset_key() {
             return Err(error);
         }
@@ -81,6 +80,39 @@ impl Ch559 {
             }
             Err(string) => return Err(string),
         }
+    }
+
+    pub fn read_data(&mut self, filename: String) -> Result<(), String> {
+        let mut file;
+        match File::create(filename) {
+            Ok(file_) => file = file_,
+            Err(error) => return Err(format!("{}", error)),
+        }
+        if let Err(error) = self.reset_key() {
+            return Err(error);
+        }
+        let mut bar = ProgressBar::new(0x400);
+        for offset in (0..0x400).step_by(0x38) {
+            bar.progress(offset);
+            let remaining_size = 0x400 - offset;
+            let size: usize = if remaining_size > 0x38 {
+                0x38
+            } else {
+                remaining_size
+            };
+            let mut response: Vec<u8> = Vec::with_capacity(size);
+            response.resize(size, 0);
+            match self.read_data_in_range(offset as u16, &mut response) {
+                Ok(_) => {
+                    if let Err(error) = file.write_all(&response) {
+                        return Err(format!("{}", error));
+                    }
+                }
+                Err(error) => return Err(error),
+            };
+            bar.progress(offset + size);
+        }
+        return Ok(());
     }
 
     fn initialize(&mut self) -> Result<(), String> {
@@ -170,6 +202,9 @@ impl Ch559 {
     }
 
     fn reset_key(&mut self) -> Result<(), String> {
+        if let None = &mut self.handle {
+            return Err(String::from("invalid handle"));
+        }
         if self.key_is_reset {
             return Ok(());
         }
@@ -216,5 +251,37 @@ impl Ch559 {
         } else {
             return Err(String::from("invalid handle"));
         }
+    }
+
+    // `addr` is offset from 0xF000 (DATA_FLASH_ADDR)
+    // reset_key() should be called beforehand.
+    fn read_data_in_range(&mut self, addr: u16, buffer: &mut [u8]) -> Result<(), String> {
+        if buffer.len() > 0x38 {
+            return Err(String::from("read size is too large"));
+        }
+        let request = [
+            0xab,
+            0x00,
+            0x00,
+            addr as u8,
+            (addr >> 8) as u8,
+            0x00,
+            0x00,
+            buffer.len() as u8,
+        ];
+        let mut response: Vec<u8> = Vec::with_capacity(buffer.len() + 6);
+        response.resize(buffer.len() + 6, 0);
+        match self.send_receive(&request, &mut response) {
+            Ok(_) => {
+                if 0 != response[4] {
+                    return Err(String::from("failed to read"));
+                }
+                for i in 0..buffer.len() {
+                    buffer[i] = response[i + 6];
+                }
+            }
+            Err(error) => return Err(error),
+        }
+        return Ok(());
     }
 }
