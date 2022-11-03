@@ -1,8 +1,8 @@
 // Copyright 2022 Takashi Toyoshima <toyoshim@gmail.com>. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be found
 // in the LICENSE file.
-use rand;
 use rusb;
+use srand;
 use std::fs::File;
 use std::io::{Read, Write};
 
@@ -17,6 +17,7 @@ pub struct Ch559 {
     version: String,
     sum: u8,
     key_is_reset: bool,
+    seed: i64,
 }
 
 impl Ch559 {
@@ -31,6 +32,7 @@ impl Ch559 {
             version: String::from("unknown"),
             sum: 0,
             key_is_reset: false,
+            seed: 1,
         };
         if ch559.is_connected() {
             if let Err(error) = ch559.initialize() {
@@ -39,6 +41,10 @@ impl Ch559 {
             }
         }
         return ch559;
+    }
+
+    pub fn set_seed(&mut self, seed: i64) {
+        self.seed = seed;
     }
 
     pub fn is_connected(&self) -> bool {
@@ -170,6 +176,7 @@ impl Ch559 {
             file_length
         };
         let mut bar = ProgressBar::new(length);
+        let mut rand = srand::Rand::new(srand::RngSource::new(self.seed));
         for offset in (0..length).step_by(0x38) {
             bar.progress(offset);
             let remaining_size = length - offset;
@@ -199,11 +206,10 @@ impl Ch559 {
             }
             if read_size != size {
                 for i in read_size..size {
-                    data[i] = rand::random::<u8>();
+                    data[i] = rand.uint32() as u8;
                 }
             }
-            if let Err(error) =
-                self.write_verify_in_range(offset as u16, &data, write, data_region, fullfill)
+            if let Err(error) = self.write_verify_in_range(offset as u16, &data, write, data_region)
             {
                 return Err(error);
             }
@@ -390,7 +396,6 @@ impl Ch559 {
         data: &[u8],
         write: bool,
         data_region: bool,
-        fullfill: bool,
     ) -> Result<(), String> {
         if data.len() > 0x38 {
             return Err(String::from("read size is too large"));
@@ -415,8 +420,7 @@ impl Ch559 {
             if i < data.len() {
                 request.push(data[i]);
             } else {
-                let value: u8 = if fullfill { rand::random::<u8>() } else { 0xff };
-                request.push(value);
+                request.push(0xff);
             }
             if 7 == (i & 7) {
                 request[8 + i] ^= self.chip_id;

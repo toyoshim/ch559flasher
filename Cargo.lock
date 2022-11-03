@@ -37,8 +37,8 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "exitcode",
- "rand",
  "rusb",
+ "srand",
  "usb-ids",
 ]
 
@@ -110,6 +110,12 @@ checksum = "62b467343b94ba476dcb2500d242dadbb39557df889310ac77c5d99100aaac33"
 dependencies = [
  "libc",
 ]
+
+[[package]]
+name = "lazy_static"
+version = "1.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
@@ -294,6 +300,15 @@ name = "siphasher"
 version = "0.3.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7bd3e3206899af3f8b12af284fafc038cc1dc2b41d1b89dd17297221c5d225de"
+
+[[package]]
+name = "srand"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf4b5c06dab00b9460e5d0a885a6bf891457f2e42b70f5a343d6b17382431b90"
+dependencies = [
+ "lazy_static",
+]
 
 [[package]]
 name = "strsim"

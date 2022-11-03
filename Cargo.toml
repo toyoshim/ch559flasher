@@ -9,6 +9,6 @@ description = "CH559 flash utility"
 [dependencies]
 clap = { version = "4.0.14", features = ["derive"] }
 exitcode = "1.1.2"
-rand = "0.8.5"
 rusb = "0.9.1"
+srand = "0.4.0"
 usb-ids = "0.2.4"
