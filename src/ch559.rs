@@ -1,8 +1,6 @@
 // Copyright 2022 Takashi Toyoshima <toyoshim@gmail.com>. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be found
 // in the LICENSE file.
-use rusb;
-use srand;
 use std::fs::File;
 use std::io::{Read, Write};
 
@@ -48,10 +46,7 @@ impl Ch559 {
     }
 
     pub fn is_connected(&self) -> bool {
-        match self.handle {
-            Some(_) => return true,
-            None => return false,
-        }
+        self.handle.is_some()
     }
 
     pub fn erase(&mut self) -> Result<(), String> {
@@ -95,8 +90,7 @@ impl Ch559 {
             } else {
                 remaining_size
             };
-            let mut response: Vec<u8> = Vec::with_capacity(size);
-            response.resize(size, 0);
+            let mut response: Vec<u8> = vec![0; size];
             self.read_data_in_range(offset as u16, &mut response)?;
             if let Err(error) = file.write_all(&response) {
                 return Err(format!("{}", error));
@@ -167,8 +161,7 @@ impl Ch559 {
             } else {
                 remaining_size
             };
-            let mut data: Vec<u8> = Vec::with_capacity(size);
-            data.resize(size, 0);
+            let mut data: Vec<u8> = vec![0; size];
             let read_size = if offset > file_length {
                 0
             } else if offset + size > file_length {
@@ -187,8 +180,8 @@ impl Ch559 {
                 }
             }
             if read_size != size {
-                for i in read_size..size {
-                    data[i] = rand.uint32() as u8;
+                for item in data.iter_mut().take(size).skip(read_size) {
+                    *item = rand.uint32() as u8;
                 }
             }
             self.write_verify_in_range(offset as u16, &data, write, data_region)?;
@@ -240,10 +233,10 @@ impl Ch559 {
             } else {
                 return Err(String::from("failed to check configurations"));
             }
-            if let Err(_) = handle.set_active_configuration(config_number) {
+            if handle.set_active_configuration(config_number).is_err() {
                 return Err(String::from("failed to activate the target configuration"));
             }
-            if let Err(_) = handle.claim_interface(interface_number) {
+            if handle.claim_interface(interface_number).is_err() {
                 return Err(String::from("failed to claim the target interface"));
             }
             let detect_request = [
@@ -276,7 +269,7 @@ impl Ch559 {
     }
 
     fn reset_key(&mut self) -> Result<(), String> {
-        if let None = &mut self.handle {
+        if self.handle.is_none() {
             return Err(String::from("invalid handle"));
         }
         if self.key_is_reset {
@@ -286,8 +279,8 @@ impl Ch559 {
         request[0] = 0xa3;
         request[1] = 0x30;
         request[2] = 0x00;
-        for i in 3..0x33 {
-            request[i] = self.sum;
+        for item in request.iter_mut().skip(3) {
+            *item = self.sum;
         }
         let mut response = [0; 6];
         self.send_receive(&request, &mut response)?;
@@ -313,10 +306,7 @@ impl Ch559 {
             if let Err(error) =
                 handle.read_bulk(self.ep_in, response, core::time::Duration::new(1, 0))
             {
-                Err(String::from(format!(
-                    "failed to do a bulk read response ({})",
-                    error
-                )))
+                Err(format!("failed to do a bulk read response ({})", error))
             } else {
                 Ok(())
             }
@@ -341,15 +331,12 @@ impl Ch559 {
             0x00,
             buffer.len() as u8,
         ];
-        let mut response: Vec<u8> = Vec::with_capacity(buffer.len() + 6);
-        response.resize(buffer.len() + 6, 0);
+        let mut response: Vec<u8> = vec![0; buffer.len() + 6];
         self.send_receive(&request, &mut response)?;
         if 0 != response[4] {
             Err(String::from("failed to read"))
         } else {
-            for i in 0..buffer.len() {
-                buffer[i] = response[i + 6];
-            }
+            buffer.copy_from_slice(&response[6..response.len()]);
             Ok(())
         }
     }
@@ -396,7 +383,7 @@ impl Ch559 {
         self.send_receive(&request, &mut response)?;
         if 0 != response[4] {
             let mode = if write { "flash" } else { "verify" };
-            Err(String::from(format!("failed to {}", mode)))
+            Err(format!("failed to {}", mode))
         } else {
             Ok(())
         }

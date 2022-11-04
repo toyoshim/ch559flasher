@@ -14,10 +14,7 @@ impl ProgressBar {
             "[__________________________________________________] ({} bytes)\r[",
             size
         );
-        ProgressBar {
-            size: size,
-            progress: 0,
-        }
+        ProgressBar { size, progress: 0 }
     }
 
     pub fn progress(&mut self, progress: usize) {
@@ -33,6 +30,6 @@ impl ProgressBar {
 
 impl Drop for ProgressBar {
     fn drop(&mut self) {
-        println!("");
+        println!();
     }
 }
