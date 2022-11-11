@@ -36,12 +36,13 @@ struct Options {
 
 fn main() {
     let options = Options::parse();
-    let mut ch559 = Ch559::new();
-
-    if !ch559.is_connected() {
-        println!("CH559 Not Found");
-        std::process::exit(exitcode::USAGE);
-    }
+    let mut ch559 = match Ch559::new() {
+        Ok(ch559) => ch559,
+        Err(e) => {
+            println!("{}", e);
+            std::process::exit(exitcode::USAGE);
+        }
+    };
     if let Some(seed) = options.seed {
         println!("random seed: {}", seed);
         ch559.set_seed(seed);

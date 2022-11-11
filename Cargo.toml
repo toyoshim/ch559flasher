@@ -11,4 +11,5 @@ clap = { version = "4.0.14", features = ["derive"] }
 exitcode = "1.1.2"
 rusb = "0.9.1"
 srand = "0.4.0"
+thiserror = "1.0.37"
 usb-ids = "0.2.4"
