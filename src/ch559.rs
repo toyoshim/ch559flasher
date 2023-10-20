@@ -57,6 +57,10 @@ pub enum Error {
     #[error("failed to initialize")]
     Initialize(Box<Error>),
     #[error("CH559 Not Found")]
+    WriteConfig,
+    #[error("failed to write config")]
+    WriteConfigVersion,
+    #[error("unsupported bootloader version")]
     NotFound,
 }
 
@@ -223,6 +227,23 @@ impl Ch559 {
         Ok(())
     }
 
+    pub fn write_config(&mut self, config: u8) -> Result<(), Error> {
+        let mut response: [u8; 6] = [0; 6];
+        if self.version.eq("2.31") || self.version.eq("2.40") {
+            let request = [
+                0xa8, 0x0e, 0x00, 0x07, 0x00, 0xff, 0xff, 0xff, 0xff, 0x03, 0x00, 0x00, 0x00, 0xff,
+                config, 0xff, 0x97,
+            ];
+            self.send_receive(&request, &mut response)?;
+        } else {
+            return Err(Error::WriteConfigVersion);
+        }
+        if 0 != response[4] {
+            return Err(Error::WriteConfig);
+        }
+        Ok(())
+    }
+
     fn initialize(&mut self) -> Result<(), Error> {
         let device = self.handle.device();
         let config = device.config_descriptor(0);
@@ -291,7 +312,10 @@ impl Ch559 {
             identify_response[19], identify_response[20], identify_response[21],
         );
 
-        println!("CH559 Found (BootLoader: v{})", self.version);
+        println!(
+            "CH559 Found (BootLoader: v{}, ROM_CFG[17:8]: {:02x})",
+            self.version, identify_response[15]
+        );
         self.sum = identify_response[22]
             .wrapping_add(identify_response[23])
             .wrapping_add(identify_response[24])

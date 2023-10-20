@@ -30,6 +30,9 @@ struct Options {
     #[arg(short, long, help = "Random seed")]
     seed: Option<i64>,
 
+    #[arg(short = 'g', long, help = "Write BOOT_CFG[15:8] in hex (i.e. 4e)")]
+    config: Option<String>,
+
     #[arg(short, long, help = "Boot application")]
     boot: bool,
 
@@ -144,6 +147,21 @@ fn main() {
         } else {
             println!("compare_data: FILENAME should be specified");
             std::process::exit(exitcode::USAGE);
+        }
+    }
+    if let Some(config) = options.config.as_ref() {
+        match u8::from_str_radix(config, 16) {
+            Ok(v) => match ch559.write_config(v) {
+                Ok(()) => println!("write_config: complete ({})", v),
+                Err(error) => {
+                    println!("write_config: {}", error);
+                    std::process::exit(exitcode::IOERR);
+                }
+            },
+            Err(error) => {
+                println!("config: {}", error);
+                std::process::exit(exitcode::USAGE);
+            }
         }
     }
     if options.boot {
