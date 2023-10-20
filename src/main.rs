@@ -152,7 +152,7 @@ fn main() {
     if let Some(config) = options.config.as_ref() {
         match u8::from_str_radix(config, 16) {
             Ok(v) => match ch559.write_config(v) {
-                Ok(()) => println!("write_config: complete ({})", v),
+                Ok(()) => println!("write_config: complete ({:02x})", v),
                 Err(error) => {
                     println!("write_config: {}", error);
                     std::process::exit(exitcode::IOERR);
