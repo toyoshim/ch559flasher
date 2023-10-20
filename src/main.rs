@@ -30,6 +30,9 @@ struct Options {
     #[arg(short, long, help = "Random seed")]
     seed: Option<i64>,
 
+    #[arg(short, long, help = "Boot application")]
+    boot: bool,
+
     #[arg(help = "Filename to flash from or write into")]
     filename: Option<String>,
 }
@@ -141,6 +144,15 @@ fn main() {
         } else {
             println!("compare_data: FILENAME should be specified");
             std::process::exit(exitcode::USAGE);
+        }
+    }
+    if options.boot {
+        match ch559.boot() {
+            Ok(()) => println!("boot: complete"),
+            Err(error) => {
+                println!("boot: {}", error);
+                std::process::exit(exitcode::IOERR);
+            }
         }
     }
     std::process::exit(exitcode::OK);

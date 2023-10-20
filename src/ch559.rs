@@ -217,6 +217,12 @@ impl Ch559 {
         Ok(())
     }
 
+    pub fn boot(&mut self) -> Result<(), Error> {
+        let request = [0xa2, 0x01, 0x00, 0x01];
+        self.send(&request)?;
+        Ok(())
+    }
+
     fn initialize(&mut self) -> Result<(), Error> {
         let device = self.handle.device();
         let config = device.config_descriptor(0);
@@ -310,6 +316,17 @@ impl Ch559 {
             return Err(Error::ResetKey);
         }
         self.key_is_reset = true;
+        Ok(())
+    }
+
+    fn send(&mut self, request: &[u8]) -> Result<(), Error> {
+        let size = self
+            .handle
+            .write_bulk(self.ep_out, request, core::time::Duration::new(1, 0))
+            .map_err(|_| Error::BulkWrite)?;
+        if size != request.len() {
+            return Err(Error::BulkWriteAll);
+        }
         Ok(())
     }
 
