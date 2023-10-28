@@ -57,11 +57,11 @@ pub enum Error {
     #[error("failed to initialize")]
     Initialize(Box<Error>),
     #[error("CH559 Not Found")]
-    WriteConfig,
-    #[error("failed to write config")]
-    WriteConfigVersion,
-    #[error("unsupported bootloader version")]
     NotFound,
+    #[error("failed to write config")]
+    WriteConfig,
+    #[error("unsupported bootloader version")]
+    WriteConfigVersion,
 }
 
 pub struct Ch559 {
