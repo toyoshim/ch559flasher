@@ -1,6 +1,6 @@
 [package]
 name = "ch559flasher"
-version = "1.0.1"
+version = "1.1.0"
 edition = "2021"
 description = "CH559 flash utility"
 

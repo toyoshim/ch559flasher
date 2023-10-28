@@ -11,19 +11,19 @@ use crate::ch559::Ch559;
 struct Options {
     #[arg(short, long, help = "Erase program area")]
     erase: bool,
-    #[arg(short, long, help = "Write FILENAME to program area")]
-    write: bool,
-    #[arg(short = 'c', long, help = "Compare program area with FILENAME")]
-    compare: bool,
+    #[arg(short = 'w', long, help = "Write a specified file to program area")]
+    write_program: Option<String>,
+    #[arg(short = 'c', long, help = "Compare program area with a specified file")]
+    compare_program: Option<String>,
 
     #[arg(short = 'E', long, help = "Erase data area")]
     erase_data: bool,
-    #[arg(short = 'R', long, help = "Read data area to FILENAME")]
-    read_data: bool,
-    #[arg(short = 'W', long, help = "Write FILENAME to data area")]
-    write_data: bool,
-    #[arg(short = 'C', long, help = "Compare data area with FILENAME")]
-    compare_data: bool,
+    #[arg(short = 'R', long, help = "Read data area to a specified file")]
+    read_data: Option<String>,
+    #[arg(short = 'W', long, help = "Write a specified file to data area")]
+    write_data: Option<String>,
+    #[arg(short = 'C', long, help = "Compare data area with a specified file")]
+    compare_data: Option<String>,
 
     #[arg(short, long, help = "Fullfill unused area with randomized values")]
     fullfill: bool,
@@ -35,9 +35,6 @@ struct Options {
 
     #[arg(short, long, help = "Boot application")]
     boot: bool,
-
-    #[arg(help = "Filename to flash from or write into")]
-    filename: Option<String>,
 }
 
 fn main() {
@@ -53,7 +50,7 @@ fn main() {
         println!("random seed: {}", seed);
         ch559.set_seed(seed);
     }
-    if options.erase {
+    if options.erase || options.write_program.is_some() {
         match ch559.erase() {
             Ok(()) => println!("erase: complete"),
             Err(error) => {
@@ -62,39 +59,25 @@ fn main() {
             }
         }
     }
-    if options.write {
-        if let Err(error) = ch559.erase() {
-            println!("erase: {}", error);
-            std::process::exit(exitcode::IOERR);
-        }
-        if let Some(filename) = options.filename.as_ref() {
-            match ch559.write(filename, true, false, options.fullfill) {
-                Ok(()) => println!("write: complete"),
-                Err(error) => {
-                    println!("write: {}", error);
-                    std::process::exit(exitcode::IOERR);
-                }
+    if let Some(filename) = options.write_program.as_ref() {
+        match ch559.write(filename, true, false, options.fullfill) {
+            Ok(()) => println!("write: complete"),
+            Err(error) => {
+                println!("write: {}", error);
+                std::process::exit(exitcode::IOERR);
             }
-        } else {
-            println!("write: FILENAME should be specified");
-            std::process::exit(exitcode::USAGE);
         }
     }
-    if options.compare {
-        if let Some(filename) = options.filename.as_ref() {
-            match ch559.write(filename, false, false, options.fullfill) {
-                Ok(()) => println!("compare: complete"),
-                Err(error) => {
-                    println!("compare: {}", error);
-                    std::process::exit(exitcode::IOERR);
-                }
+    if let Some(filename) = options.compare_program.as_ref() {
+        match ch559.write(filename, false, false, options.fullfill) {
+            Ok(()) => println!("compare: complete"),
+            Err(error) => {
+                println!("compare: {}", error);
+                std::process::exit(exitcode::IOERR);
             }
-        } else {
-            println!("compare: FILENAME should be specified");
-            std::process::exit(exitcode::USAGE);
         }
     }
-    if options.erase_data {
+    if options.erase_data || options.write_data.is_some() {
         match ch559.erase_data() {
             Ok(()) => println!("erase_data: complete"),
             Err(error) => {
@@ -103,50 +86,31 @@ fn main() {
             }
         }
     }
-    if options.read_data {
-        if let Some(filename) = options.filename.as_ref() {
-            match ch559.read_data(filename) {
-                Ok(()) => println!("read_data: complete"),
-                Err(error) => {
-                    println!("read_data: {}", error);
-                    std::process::exit(exitcode::IOERR);
-                }
+    if let Some(filename) = options.read_data.as_ref() {
+        match ch559.read_data(filename) {
+            Ok(()) => println!("read_data: complete"),
+            Err(error) => {
+                println!("read_data: {}", error);
+                std::process::exit(exitcode::IOERR);
             }
-        } else {
-            println!("read_data: FILENAME should be specified");
-            std::process::exit(exitcode::USAGE);
         }
     }
-    if options.write_data {
-        if let Err(error) = ch559.erase_data() {
-            println!("erase_data: {}", error);
-            std::process::exit(exitcode::IOERR);
-        }
-        if let Some(filename) = options.filename.as_ref() {
-            match ch559.write(filename, true, true, options.fullfill) {
-                Ok(()) => println!("write_data: complete"),
-                Err(error) => {
-                    println!("write_data: {}", error);
-                    std::process::exit(exitcode::IOERR);
-                }
+    if let Some(filename) = options.write_data.as_ref() {
+        match ch559.write(filename, true, true, options.fullfill) {
+            Ok(()) => println!("write_data: complete"),
+            Err(error) => {
+                println!("write_data: {}", error);
+                std::process::exit(exitcode::IOERR);
             }
-        } else {
-            println!("write_data: FILENAME should be specified");
-            std::process::exit(exitcode::USAGE);
         }
     }
-    if options.compare_data {
-        if let Some(filename) = options.filename.as_ref() {
-            match ch559.write(filename, false, true, options.fullfill) {
-                Ok(()) => println!("compare_data: complete"),
-                Err(error) => {
-                    println!("compare_data: {}", error);
-                    std::process::exit(exitcode::IOERR);
-                }
+    if let Some(filename) = options.compare_data.as_ref() {
+        match ch559.write(filename, false, true, options.fullfill) {
+            Ok(()) => println!("compare_data: complete"),
+            Err(error) => {
+                println!("compare_data: {}", error);
+                std::process::exit(exitcode::IOERR);
             }
-        } else {
-            println!("compare_data: FILENAME should be specified");
-            std::process::exit(exitcode::USAGE);
         }
     }
     if let Some(config) = options.config.as_ref() {
