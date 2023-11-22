@@ -1,6 +1,7 @@
 // Copyright 2022 Takashi Toyoshima <toyoshim@gmail.com>.
 // Use of this source code is governed by a BSD-style license that can be found
 // in the LICENSE file.
+use rand::prelude::*;
 use std::fs::File;
 use std::io::{Read, Write};
 use thiserror::Error;
@@ -72,7 +73,7 @@ pub struct Ch559 {
     version: String,
     sum: u8,
     key_is_reset: bool,
-    seed: i64,
+    seed: u64,
 }
 
 impl Ch559 {
@@ -99,7 +100,7 @@ impl Ch559 {
         }
     }
 
-    pub fn set_seed(&mut self, seed: i64) {
+    pub fn set_seed(&mut self, seed: u64) {
         self.seed = seed;
     }
 
@@ -187,7 +188,7 @@ impl Ch559 {
             file_length
         };
         let mut bar = ProgressBar::new(length);
-        let mut rand = srand::Rand::new(srand::RngSource::new(self.seed));
+        let mut rng = SmallRng::seed_from_u64(self.seed);
         for offset in (0..length).step_by(0x38) {
             bar.progress(offset);
             let remaining_size = length - offset;
@@ -212,7 +213,7 @@ impl Ch559 {
             }
             if read_size != size {
                 for i in read_size..size {
-                    data[i] = rand.uint32() as u8;
+                    data[i] = rng.gen::<u8>();
                 }
             }
             self.write_verify_in_range(offset as u16, &data, write, data_region)?;

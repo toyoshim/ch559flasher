@@ -28,7 +28,7 @@ struct Options {
     #[arg(short, long, help = "Fullfill unused area with randomized values")]
     fullfill: bool,
     #[arg(short, long, help = "Random seed")]
-    seed: Option<i64>,
+    seed: Option<u64>,
 
     #[arg(short = 'g', long, help = "Write BOOT_CFG[15:8] in hex (i.e. 4e)")]
     config: Option<String>,

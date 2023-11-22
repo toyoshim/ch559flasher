@@ -7,9 +7,9 @@ description = "CH559 flash utility"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+rand = { version = "0.8.5", features = ["small_rng"] }
 clap = { version = "4.4.6", features = ["derive"] }
 exitcode = "1.1.2"
 rusb = "0.9.3"
-srand = "0.4.0"
 thiserror = "1.0.50"
 usb-ids = "1.2023.6"
